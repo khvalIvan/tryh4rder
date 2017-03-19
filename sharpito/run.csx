@@ -4,30 +4,62 @@ using System.Text;
 using Newtonsoft.Json;
 
 public static async Task<HttpResponseMessage> Run(HttpRequestMessage req, TraceWriter log) {
-    var data = await req.Content.ReadAsStringAsync();
-    dynamic parsed = JsonConvert.DeserializeObject(data);
-    log.Info(data);
+    string data = await req.Content.ReadAsStringAsync();
+    log.Info("Input: " + data);
+    string[] result = await ParseTelegramMessage(data);
+    log.Info("Result: " + result[0] + "; " + result[1]);
+    string exitstring = await SendTelegramMessage(result);
+    log.Info("Final: " + exitstring);
 
+    return req.CreateResponse(HttpStatusCode.OK);
+}
+
+public static async Task<string[]> ParseTelegramMessage(string data) {
+    // Initialize variables
+    Dictionary<string, string> dictionary = new Dictionary<string, string>();
+    dynamic parsed = JsonConvert.DeserializeObject(data);
+    string key = Environment.GetEnvironmentVariable("APIKey");
     string chatId = "";
     string texto = "";
     string cb_ID = "";
+    string json = "";
+    string url = "";
 
-    if (parsed.message == null) {
+   if (parsed.message == null) {
         chatId = parsed.callback_query.message.chat.id.ToString();
         texto  = parsed.callback_query.data.ToString();
         cb_ID  = parsed.callback_query.id.ToString();
     }
     else {
         chatId = parsed.message.chat.id.ToString();
-        texto  = parsed.message.text.ToString();      
+        texto  = parsed.message.text.ToString();
     }
 
-    string[] parse = await ParseTelegramMessage(texto, chatId);
-    var results = await SendTelegramMessage(parse);
+    switch(texto) {
+        case "MrllamaSC":
+            dictionary.Add("type", "tweet");
+            dictionary.Add("searchfor", "MrllamaSC");
+            dictionary.Add("chatId", chatId);
+            dictionary.Add("count", "2");
+            json = JsonConvert.SerializeObject(dictionary);
+            url = "https://prod-14.northeurope.logic.azure.com/workflows/7d6c2b04c87b4efea8897f9533cab980/triggers/manual/paths/invoke/getTweets?api-version=2016-06-01&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=CW1k8z_JJP8ML0hYssOsZANd6hCp5goCtmYbVU5fKhw";
+            break;
+        default:
+            dictionary.Add("chat_id", chatId);
+            dictionary.Add("text", texto);
+            if (parsed.message.type != "tweet") {
+                dictionary.Add("reply_markup", @"{""inline_keyboard"":[[{""text"":""MrllamaSC?"",""callback_data"":""MrllamaSC""}],[{""text"":""Placeholder"",""callback_data"":""Placeholder""}]]}");
+            }
+            if (cb_ID != null) {
+                dictionary.Add("callback_query_id", cb_ID);
+            }
+            url = String.Format("https://api.telegram.org/bot{0}/sendMessage", key);
+            json = JsonConvert.SerializeObject(dictionary);
+            break;
+    }
 
-    log.Info(results);
-    return req.CreateResponse(HttpStatusCode.OK);
-
+    string[] result = new string[] {json, url};
+    return result;
 }
 
 public static async Task<string> SendTelegramMessage(string[] data) {
@@ -38,28 +70,5 @@ public static async Task<string> SendTelegramMessage(string[] data) {
         var result = await response.Content.ReadAsStringAsync();
 
         return result;
-    }
-}
-
-public static async Task<string> ParseTelegramMessage(string text, string chat) {
-    string key = Environment.GetEnvironmentVariable("APIKey");
-    Dictionary<string, string> dictionary = new Dictionary<string, string>();
-    string json = "";
-    string url = "";
-
-    switch(text) {
-        case "MrllamaSC":
-            dictionary.Add("type", "tweet");
-            dictionary.Add("searchfor", "MrllamaSC");
-            json = JsonConvert.SerializeObject(dictionary);
-            url = "https://prod-14.northeurope.logic.azure.com/workflows/7d6c2b04c87b4efea8897f9533cab980/triggers/manual/paths/invoke/getTweets?api-version=2016-06-01&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=CW1k8z_JJP8ML0hYssOsZANd6hCp5goCtmYbVU5fKhw";
-            return new string[] {json, url};
-        default:
-            dictionary.Add("chat_id", chat);
-            dictionary.Add("text", text);
-            dictionary.Add("reply_markup", @"{""inline_keyboard"":[[{""text"":""MrllamaSC?"",""callback_data"":""MrllamaSC""}],[{""text"":""Placeholder"",""callback_data"":""Placeholder""}]]}");
-            json = JsonConvert.SerializeObject(dictionary);
-            url = String.Format("https://api.telegram.org/bot{0}/sendMessage", key);
-            return new string[] {json, url};
     }
 }
