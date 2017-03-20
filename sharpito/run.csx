@@ -48,10 +48,10 @@ public static async Task<string[]> ParseTelegramMessage(string data) {
             dictionary.Add("chatId", chatId);
             dictionary.Add("count", "1");
             dictionary.Add("callback_query_id", callback_ID);
-            json = JsonConvert.SerializeObject(dictionary);
             url = String.Format("https://prod-14.northeurope.logic.azure.com/workflows/7d6c2b04c87b4efea8897f9533cab980/triggers/manual/paths/invoke/getTweets?api-version=2016-06-01&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig={0}", key_la);
             break;
         default:
+            url = String.Format("https://api.telegram.org/bot{0}/sendMessage", key_tg);
             dictionary.Add("chat_id", chatId);
             dictionary.Add("text", texto);
             if (parsed.message.type != "tweet") {
@@ -59,11 +59,11 @@ public static async Task<string[]> ParseTelegramMessage(string data) {
             }
             if (callback_ID != "") {
                 dictionary.Add("callback_query_id", callback_ID);
+                url = String.Format("https://api.telegram.org/bot{0}/answerCallbackQuery", key_tg);
             }
-            url = String.Format("https://api.telegram.org/bot{0}/sendMessage", key_tg);
-            json = JsonConvert.SerializeObject(dictionary);
             break;
     }
+    json = JsonConvert.SerializeObject(dictionary);
     string[] result = new string[] {json, url};
     return result;
 }
